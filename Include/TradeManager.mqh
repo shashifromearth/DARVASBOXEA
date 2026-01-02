@@ -40,7 +40,7 @@ public:
                                  CRiskManager *riskManager,
                                  int magicNumber = 123456);
     
-    bool              OpenTrade(const TradeEntry &entry);
+    bool              OpenTrade(const TradeEntry &entry, const DarvasBox &box);
     void              ManageOpenTrades();
     void              ProcessExits();
     bool              ScaleInTrade(ulong ticket, const DarvasBox &newBox);
@@ -178,7 +178,7 @@ void CTradeManager::ProcessExits()
         TradeExit exit;
         if(m_ExitManager != NULL)
         {
-            if(m_ExitManager->ProcessTradeExit(ticket, box, PERIOD_CURRENT, exit))
+            if(m_ExitManager.ProcessTradeExit(ticket, box, PERIOD_CURRENT, exit))
             {
                 // Execute exit
                 if(exit.IsPartial)
@@ -199,7 +199,10 @@ void CTradeManager::ProcessExits()
                     request.deviation = 10;
                     request.magic = m_MagicNumber;
                     
-                    OrderSend(request, result);
+                    if(!OrderSend(request, result))
+                    {
+                        Print("Failed to open trade: ", result.retcode);
+                    }
                 }
                 else
                 {
@@ -216,17 +219,20 @@ void CTradeManager::ProcessExits()
                     request.deviation = 10;
                     request.magic = m_MagicNumber;
                     
-                    OrderSend(request, result);
+                    if(!OrderSend(request, result))
+                    {
+                        Print("Failed to open trade: ", result.retcode);
+                    }
                     
                     RemoveTrade(ticket);
                 }
             }
             
             // Update trailing stops
-            m_ExitManager->UpdateTrailingStops(ticket, box);
+            m_ExitManager.UpdateTrailingStops(ticket, box);
             
             // Check breakeven
-            m_ExitManager->CheckBreakevenStop(ticket, box);
+            m_ExitManager.CheckBreakevenStop(ticket, box);
         }
     }
 }

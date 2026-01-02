@@ -188,7 +188,7 @@ bool CExitManager::CheckExit2_VolumeExhaustion(ulong ticket,
     // 1. Volume spike > 300% but price stalls
     if(m_VolumeAnalyzer != NULL)
     {
-        if(m_VolumeAnalyzer->IsVolumeExhaustion(timeframe))
+        if(m_VolumeAnalyzer.IsVolumeExhaustion(timeframe))
         {
             exit.ExitPrice = iClose(_Symbol, timeframe, 0);
             exit.ExitTime = TimeCurrent();
@@ -310,7 +310,10 @@ void CExitManager::UpdateTrailingStops(ulong ticket, const DarvasBox &newBox)
         request.sl = newStop;
         request.tp = PositionGetDouble(POSITION_TP);
         
-        OrderSend(request, result);
+        if(!OrderSend(request, result))
+        {
+            Print("Failed to update stop loss: ", result.retcode);
+        }
     }
     else if(!isLong && (currentStop == 0 || newStop < currentStop))
     {
@@ -324,7 +327,10 @@ void CExitManager::UpdateTrailingStops(ulong ticket, const DarvasBox &newBox)
         request.sl = newStop;
         request.tp = PositionGetDouble(POSITION_TP);
         
-        OrderSend(request, result);
+        if(!OrderSend(request, result))
+        {
+            Print("Failed to update stop loss: ", result.retcode);
+        }
     }
 }
 
@@ -358,7 +364,10 @@ bool CExitManager::CheckBreakevenStop(ulong ticket, const DarvasBox &box)
             request.sl = entryPrice;
             request.tp = PositionGetDouble(POSITION_TP);
             
-            OrderSend(request, result);
+            if(!OrderSend(request, result))
+            {
+                Print("Failed to move stop to breakeven: ", result.retcode);
+            }
             return true;
         }
     }
@@ -376,7 +385,10 @@ bool CExitManager::CheckBreakevenStop(ulong ticket, const DarvasBox &box)
             request.sl = entryPrice;
             request.tp = PositionGetDouble(POSITION_TP);
             
-            OrderSend(request, result);
+            if(!OrderSend(request, result))
+            {
+                Print("Failed to move stop to breakeven: ", result.retcode);
+            }
             return true;
         }
     }

@@ -149,7 +149,7 @@ bool CBreakoutScorer::CheckFalseBreakout(const DarvasBox &box,
     // Check volume collapse
     if(m_VolumeAnalyzer != NULL)
     {
-        double volumeRatio = m_VolumeAnalyzer->GetVolumeRatio(timeframe, 5);
+        double volumeRatio = m_VolumeAnalyzer.GetVolumeRatio(timeframe, 5);
         if(volumeRatio < 0.7) // Volume collapsed
             return true;
     }
@@ -165,7 +165,7 @@ int CBreakoutScorer::ScoreVolumeSurge(ENUM_TIMEFRAMES timeframe)
     if(m_VolumeAnalyzer == NULL) return 0;
     
     double surgeRatio;
-    if(m_VolumeAnalyzer->CheckVolumeSurge(timeframe, surgeRatio))
+    if(m_VolumeAnalyzer.CheckVolumeSurge(timeframe, surgeRatio))
     {
         if(surgeRatio >= 1.5)
             return 25;
@@ -205,7 +205,7 @@ int CBreakoutScorer::ScoreTrendAlignment(bool isLong)
 {
     if(m_MarketStructure == NULL) return 10; // Neutral if not available
     
-    if(m_MarketStructure->IsWithTrend(isLong, PERIOD_H4))
+    if(m_MarketStructure.IsWithTrend(isLong, PERIOD_H4))
         return 20;
     
     return 0;
@@ -281,7 +281,7 @@ int CBreakoutScorer::ScoreSessionStrength()
 {
     if(m_SessionManager == NULL) return 5; // Neutral
     
-    double weight = m_SessionManager->GetSessionWeight();
+    double weight = m_SessionManager.GetSessionWeight();
     
     if(weight >= 1.3)
         return 10;

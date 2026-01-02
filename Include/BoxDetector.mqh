@@ -328,7 +328,7 @@ bool CBoxDetector::CheckNestedBox(const DarvasBox &parentBox, DarvasBox &nestedB
     if(nestedBox.Top <= parentBox.Top && nestedBox.Bottom >= parentBox.Bottom)
     {
         nestedBox.IsNested = true;
-        nestedBox.ParentBoxId = (ulong)&parentBox;
+        nestedBox.ParentBoxId = (ulong)parentBox.CreationTime; // Use creation time as ID
         return true;
     }
     

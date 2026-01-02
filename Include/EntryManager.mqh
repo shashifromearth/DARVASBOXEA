@@ -126,11 +126,11 @@ bool CEntryManager::ProcessBreakout(const DarvasBox &box,
     // Check if breakout is valid
     if(m_Scorer != NULL)
     {
-        if(!m_Scorer->IsBreakoutValid(box, timeframe, isLong))
+        if(!m_Scorer.IsBreakoutValid(box, timeframe, isLong))
             return false;
         
         // Check for false breakout
-        if(m_Scorer->CheckFalseBreakout(box, timeframe, isLong))
+        if(m_Scorer.CheckFalseBreakout(box, timeframe, isLong))
             return false;
     }
     
@@ -173,7 +173,7 @@ bool CEntryManager::CheckTier1Entry(const DarvasBox &box,
     // Calculate stop loss
     double stopLoss = 0;
     if(m_RiskManager != NULL)
-        stopLoss = m_RiskManager->CalculateStopLoss(box, isLong, timeframe);
+        stopLoss = m_RiskManager.CalculateStopLoss(box, isLong, timeframe);
     else
         stopLoss = isLong ? (box.Bottom - box.ATRValue) : (box.Top + box.ATRValue);
     
@@ -181,7 +181,7 @@ bool CEntryManager::CheckTier1Entry(const DarvasBox &box,
     double positionSize = 0;
     if(m_RiskManager != NULL)
     {
-        double fullSize = m_RiskManager->CalculatePositionSize(box, entryPrice, stopLoss);
+        double fullSize = m_RiskManager.CalculatePositionSize(box, entryPrice, stopLoss);
         positionSize = fullSize * 0.2; // 20% for Tier 1
     }
     
@@ -194,7 +194,7 @@ bool CEntryManager::CheckTier1Entry(const DarvasBox &box,
     // Get breakout score
     int score = 70;
     if(m_Scorer != NULL)
-        score = m_Scorer->CalculateBreakoutScore(box, timeframe, isLong);
+        score = m_Scorer.CalculateBreakoutScore(box, timeframe, isLong);
     
     // Fill entry structure
     entry.EntryPrice = entryPrice;
@@ -204,7 +204,7 @@ bool CEntryManager::CheckTier1Entry(const DarvasBox &box,
     entry.BreakoutScore = score;
     entry.EntryTime = TimeCurrent();
     entry.IsLong = isLong;
-    entry.BoxId = (ulong)&box;
+    entry.BoxId = (ulong)box.CreationTime; // Use creation time as ID
     entry.OrderType = ORDER_TYPE_BUY; // Will be set based on isLong
     
     return true;
@@ -234,13 +234,13 @@ bool CEntryManager::CheckTier2Entry(const DarvasBox &box,
     // Calculate stop loss
     double stopLoss = 0;
     if(m_RiskManager != NULL)
-        stopLoss = m_RiskManager->CalculateStopLoss(box, isLong, timeframe);
+        stopLoss = m_RiskManager.CalculateStopLoss(box, isLong, timeframe);
     
     // Calculate position size (50% of full position)
     double positionSize = 0;
     if(m_RiskManager != NULL)
     {
-        double fullSize = m_RiskManager->CalculatePositionSize(box, entryPrice, stopLoss);
+        double fullSize = m_RiskManager.CalculatePositionSize(box, entryPrice, stopLoss);
         positionSize = fullSize * 0.5; // 50% for Tier 2
     }
     
@@ -258,7 +258,7 @@ bool CEntryManager::CheckTier2Entry(const DarvasBox &box,
     entry.BreakoutScore = 80; // Higher score for retest
     entry.EntryTime = TimeCurrent();
     entry.IsLong = isLong;
-    entry.BoxId = (ulong)&box;
+    entry.BoxId = (ulong)box.CreationTime; // Use creation time as ID
     entry.OrderType = ORDER_TYPE_BUY_LIMIT; // Limit order for retest
     
     return true;
@@ -284,13 +284,13 @@ bool CEntryManager::CheckTier3Entry(const DarvasBox &box,
     // Calculate stop loss
     double stopLoss = 0;
     if(m_RiskManager != NULL)
-        stopLoss = m_RiskManager->CalculateStopLoss(box, isLong, timeframe);
+        stopLoss = m_RiskManager.CalculateStopLoss(box, isLong, timeframe);
     
     // Calculate position size (30% of full position)
     double positionSize = 0;
     if(m_RiskManager != NULL)
     {
-        double fullSize = m_RiskManager->CalculatePositionSize(box, entryPrice, stopLoss);
+        double fullSize = m_RiskManager.CalculatePositionSize(box, entryPrice, stopLoss);
         positionSize = fullSize * 0.3; // 30% for Tier 3
     }
     
@@ -308,7 +308,7 @@ bool CEntryManager::CheckTier3Entry(const DarvasBox &box,
     entry.BreakoutScore = 75;
     entry.EntryTime = TimeCurrent();
     entry.IsLong = isLong;
-    entry.BoxId = (ulong)&box;
+    entry.BoxId = (ulong)box.CreationTime; // Use creation time as ID
     entry.OrderType = ORDER_TYPE_BUY_STOP; // Stop order for momentum
     
     return true;
@@ -336,7 +336,7 @@ bool CEntryManager::CheckTier1Conditions(const DarvasBox &box,
     if(m_VolumeAnalyzer != NULL)
     {
         double surgeRatio;
-        if(!m_VolumeAnalyzer->CheckVolumeSurge(timeframe, surgeRatio) || surgeRatio < m_VolumeSurgeMin)
+        if(!m_VolumeAnalyzer.CheckVolumeSurge(timeframe, surgeRatio) || surgeRatio < m_VolumeSurgeMin)
             return false;
     }
     
@@ -396,8 +396,8 @@ bool CEntryManager::CheckTier2Conditions(const DarvasBox &box,
         // 4. Volume decreases on retest, increases on bounce
         if(m_VolumeAnalyzer != NULL)
         {
-            double volume0 = m_VolumeAnalyzer->GetVolumeRatio(timeframe, 1);
-            double volume1 = m_VolumeAnalyzer->GetVolumeRatio(timeframe, 2);
+            double volume0 = m_VolumeAnalyzer.GetVolumeRatio(timeframe, 1);
+            double volume1 = m_VolumeAnalyzer.GetVolumeRatio(timeframe, 2);
             if(volume0 >= volume1) return false; // Volume should increase
         }
     }
@@ -430,7 +430,7 @@ bool CEntryManager::CheckTier3Conditions(const DarvasBox &box,
     // 3. Volume expanding with price
     if(m_VolumeAnalyzer != NULL)
     {
-        double volumeRatio = m_VolumeAnalyzer->GetVolumeRatio(timeframe, 5);
+        double volumeRatio = m_VolumeAnalyzer.GetVolumeRatio(timeframe, 5);
         if(volumeRatio < 1.0) return false; // Volume should be expanding
     }
     
@@ -503,6 +503,8 @@ bool CEntryManager::CheckRetestFormation(ENUM_TIMEFRAMES timeframe, const Darvas
             return true;
         
         // Inside bar breakout
+        double high1 = iHigh(_Symbol, timeframe, 1);
+        double low1 = iLow(_Symbol, timeframe, 1);
         if(high0 < high1 && low0 > low1 && close0 > open0)
             return true;
     }
