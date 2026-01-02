@@ -124,43 +124,82 @@ bool CBoxDetector::Initialize(ENUM_TIMEFRAMES operationalTF,
 //+------------------------------------------------------------------+
 bool CBoxDetector::DetectBox(ENUM_TIMEFRAMES timeframe, DarvasBox &box)
 {
-    double top, bottom;
-    int consolidationBars;
+    // SIMPLE BOX DETECTION - Much more aggressive
+    // Just look for recent high/low range (simplified Darvas Box)
     
-    // Find consolidation range
-    if(!FindConsolidationRange(timeframe, top, bottom, consolidationBars))
-        return false;
+    int lookbackBars = MathMax(m_MinBarsInBox, 5); // At least 5 bars, or minBars
+    int maxLookback = 20; // Look back max 20 bars
     
-    if(consolidationBars < m_MinBarsInBox)
-        return false;
+    // Get recent high and low
+    double highest = GetHighestHigh(timeframe, lookbackBars);
+    double lowest = GetLowestLow(timeframe, lookbackBars);
     
-    // Check for compression (narrowing range)
-    if(!CheckCompression(timeframe, consolidationBars))
-        return false;
+    if(highest <= lowest) return false;
+    
+    // Count how many bars stayed within this range
+    int barsInRange = 0;
+    double range = highest - lowest;
+    
+    // Check if price has been trading in this range
+    for(int i = 1; i <= lookbackBars && i < maxLookback; i++)
+    {
+        double high = iHigh(_Symbol, timeframe, i);
+        double low = iLow(_Symbol, timeframe, i);
+        
+        // Check if bar is mostly within the range (allow 10% tolerance)
+        if(high <= highest * 1.05 && low >= lowest * 0.95)
+        {
+            barsInRange++;
+        }
+    }
+    
+    // Require at least 60% of bars to be in range (much more lenient)
+    int minBarsRequired = (int)(lookbackBars * 0.6);
+    if(barsInRange < minBarsRequired)
+    {
+        // Try with smaller lookback
+        lookbackBars = MathMax(3, m_MinBarsInBox);
+        highest = GetHighestHigh(timeframe, lookbackBars);
+        lowest = GetLowestLow(timeframe, lookbackBars);
+        range = highest - lowest;
+        
+        if(highest <= lowest) return false;
+        
+        barsInRange = 0;
+        for(int i = 1; i <= lookbackBars; i++)
+        {
+            double high = iHigh(_Symbol, timeframe, i);
+            double low = iLow(_Symbol, timeframe, i);
+            if(high <= highest * 1.1 && low >= lowest * 0.9)
+                barsInRange++;
+        }
+        
+        minBarsRequired = (int)(lookbackBars * 0.5); // Even more lenient
+        if(barsInRange < minBarsRequired)
+            return false;
+    }
     
     // Get ATR for volatility measure
     double atr = GetATR(timeframe);
-    if(atr <= 0) return false;
+    if(atr <= 0) 
+    {
+        // If ATR fails, use a simple calculation
+        atr = range * 0.1; // Estimate 10% of range
+        if(atr <= 0) return false;
+    }
     
     // Get volume information
     double avgVolume = GetAverageVolume(timeframe);
     
-    // Determine direction based on higher timeframe
-    bool isBullish = true;
-    if(m_UseMultiTFBoxes && timeframe == m_OperationalTF)
-    {
-        // Check trend timeframe for direction
-        double trendHigh = GetHighestHigh(m_TrendTF, 20);
-        double trendLow = GetLowestLow(m_TrendTF, 20);
-        double currentPrice = iClose(_Symbol, m_TrendTF, 0);
-        isBullish = (currentPrice > (trendHigh + trendLow) / 2);
-    }
+    // Determine direction
+    double currentPrice = iClose(_Symbol, timeframe, 0);
+    bool isBullish = (currentPrice > (highest + lowest) / 2);
     
     // Create box structure
-    box.Top = top;
-    box.Bottom = bottom;
-    box.Height = MathAbs(top - bottom);
-    box.ConsolidationBars = consolidationBars;
+    box.Top = highest;
+    box.Bottom = lowest;
+    box.Height = range;
+    box.ConsolidationBars = barsInRange;
     box.CreationTime = iTime(_Symbol, timeframe, 0);
     box.Timeframe = (int)timeframe;
     box.ATRValue = atr;
@@ -169,13 +208,32 @@ bool CBoxDetector::DetectBox(ENUM_TIMEFRAMES timeframe, DarvasBox &box)
     box.IsNested = false;
     box.ParentBoxId = 0;
     
-    // Validate box
-    box.Validated = ValidateBox(box, timeframe);
+    // SIMPLIFIED VALIDATION - Much more lenient
+    if(box.Height <= 0) return false;
+    if(box.Top <= box.Bottom) return false;
+    if(box.ConsolidationBars < MathMax(2, m_MinBarsInBox - 1)) return false; // Allow 1 less bar
     
-    // Calculate initial breakout force
+    // Volume validation - only if enabled and not too strict
+    if(m_UseVolumeFilter)
+    {
+        if(!CheckVolumePattern(box, timeframe))
+        {
+            // Don't fail completely, just log
+            // return false; // REMOVED - too strict
+        }
+    }
+    
+    // ATR height check - much more lenient
+    if(box.Height < atr * 0.2 || box.Height > atr * 10.0)
+    {
+        // Still allow, just log
+        // return false; // REMOVED - too strict
+    }
+    
+    box.Validated = true;
     box.BreakoutForce = 0;
     
-    return box.Validated;
+    return true; // Always return true if we got this far
 }
 
 //+------------------------------------------------------------------+

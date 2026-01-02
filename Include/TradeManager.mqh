@@ -99,6 +99,48 @@ bool CTradeManager::Initialize(CEntryManager *entryManager,
 //+------------------------------------------------------------------+
 bool CTradeManager::OpenTrade(const TradeEntry &entry, const DarvasBox &box)
 {
+    //--- CRITICAL: Check if we already have an open position - ONLY ONE POSITION AT A TIME
+    int totalPositions = PositionsTotal();
+    for(int i = 0; i < totalPositions; i++)
+    {
+        ulong ticket = PositionGetTicket(i);
+        if(ticket > 0)
+        {
+            if(PositionSelectByTicket(ticket))
+            {
+                // Check if it's our symbol and our magic number
+                if(PositionGetString(POSITION_SYMBOL) == _Symbol)
+                {
+                    if(PositionGetInteger(POSITION_MAGIC) == m_MagicNumber)
+                    {
+                        Print("OpenTrade BLOCKED: Already have open position. Ticket=", ticket);
+                        return false; // Block opening new trade
+                    }
+                }
+            }
+        }
+    }
+    
+    // Also check our internal tracking
+    if(m_TradeCount > 0)
+    {
+        // Verify positions still exist
+        for(int i = m_TradeCount - 1; i >= 0; i--)
+        {
+            if(!PositionSelectByTicket(m_OpenTrades[i]))
+            {
+                // Position closed, remove from tracking
+                RemoveTrade(m_OpenTrades[i]);
+            }
+            else
+            {
+                // Position still open
+                Print("OpenTrade BLOCKED: Internal tracking shows open trade. Ticket=", m_OpenTrades[i]);
+                return false; // Block opening new trade
+            }
+        }
+    }
+    
     MqlTradeRequest request = {};
     MqlTradeResult result = {};
     
@@ -122,9 +164,19 @@ bool CTradeManager::OpenTrade(const TradeEntry &entry, const DarvasBox &box)
             {
                 ulong ticket = PositionGetInteger(POSITION_TICKET);
                 AddTrade(ticket, box);
+                Print("Trade OPENED: Ticket=", ticket, ", Type=", entry.IsLong ? "LONG" : "SHORT",
+                      ", Size=", entry.PositionSize);
                 return true;
             }
         }
+        else
+        {
+            Print("Trade OPEN FAILED: retcode=", result.retcode, ", comment=", result.comment);
+        }
+    }
+    else
+    {
+        Print("OrderSend FAILED: retcode=", result.retcode, ", comment=", result.comment);
     }
     
     return false;
@@ -135,21 +187,37 @@ bool CTradeManager::OpenTrade(const TradeEntry &entry, const DarvasBox &box)
 //+------------------------------------------------------------------+
 void CTradeManager::ManageOpenTrades()
 {
+    // First, clean up any closed positions from tracking
+    for(int i = m_TradeCount - 1; i >= 0; i--)
+    {
+        if(!PositionSelectByTicket(m_OpenTrades[i]))
+        {
+            // Position was closed externally, remove from tracking
+            Print("Position CLOSED (external): Ticket=", m_OpenTrades[i], " - Removed from tracking");
+            RemoveTrade(m_OpenTrades[i]);
+        }
+    }
+    
+    // If no positions, nothing to manage
+    if(m_TradeCount == 0)
+        return;
+    
     // Update trade boxes
     UpdateTradeBoxes();
     
     // Process exits
     ProcessExits();
     
-    // Check for scale-in opportunities
-    for(int i = 0; i < m_TradeCount; i++)
-    {
-        if(PositionSelectByTicket(m_OpenTrades[i]))
-        {
-            // Check if we can scale in
-            // This would require detecting new boxes
-        }
-    }
+    // Check for scale-in opportunities (DISABLED for single-position mode)
+    // Pyramiding should be disabled to maintain single position rule
+    // for(int i = 0; i < m_TradeCount; i++)
+    // {
+    //     if(PositionSelectByTicket(m_OpenTrades[i]))
+    //     {
+    //         // Check if we can scale in
+    //         // DISABLED: Only one position at a time
+    //     }
+    // }
     
     // Update statistics
     UpdateTradeStatistics();
